@@ -23,7 +23,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y postgresql-client jq python3
 
-      - name: Build DB URL from parts
+      - name: Build DB URL from parts (force IPv4)
         id: build_url
         env:
           DB_HOST: ${{ secrets.SUPABASE_DB_HOST }}
@@ -35,18 +35,32 @@ jobs:
           for v in DB_HOST DB_NAME DB_USER DB_PASS; do
             if [ -z "${!v}" ]; then echo "❌ Missing secret: $v"; exit 1; fi
           done
+
+          # Resolve IPv4 for the host (works without dig)
+          IPV4=$(getent ahostsv4 "$DB_HOST" | awk 'NR==1{print $1}')
+          if [ -z "${IPV4:-}" ]; then
+            # Fallback to any IPv4 from getent hosts
+            IPV4=$(getent hosts "$DB_HOST" | awk '$1 ~ /^[0-9.]+$/ {print $1; exit}')
+          fi
+          if [ -z "${IPV4:-}" ]; then
+            echo "❌ Could not resolve IPv4 for $DB_HOST"; exit 1
+          fi
+          echo "Using IPv4: $IPV4"
+
           DB_URL=$(python3 - <<'PY'
-          import os, urllib.parse
-          host=os.environ["DB_HOST"].strip()
-          db  =os.environ["DB_NAME"].strip()
-          usr =os.environ["DB_USER"].strip()
-          pwd =urllib.parse.quote(os.environ["DB_PASS"], safe="")
-          print(f"postgresql://{usr}:{pwd}@{host}:5432/{db}?sslmode=require")
-          PY
-          )
+import os, urllib.parse
+host=os.environ["DB_HOST"].strip()
+db  =os.environ["DB_NAME"].strip()
+usr =os.environ["DB_USER"].strip()
+pwd =urllib.parse.quote(os.environ["DB_PASS"], safe="")
+ip  =os.environ["IPV4"].strip()
+# Keep host for TLS/SNI, but force connect to IPv4 with hostaddr
+print(f"postgresql://{usr}:{pwd}@{host}:5432/{db}?sslmode=require&hostaddr={ip}")
+PY
+)
           echo "::add-mask::$DB_URL"
           echo "SUPABASE_DB_URL=$DB_URL" >> $GITHUB_ENV
-          echo "✅ Built DB URL"
+          echo "✅ Built DB URL (IPv4 forced)"
 
       - name: DB smoke test
         run: |
