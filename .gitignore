@@ -1,0 +1,10 @@
+# Node & OS clutter
+node_modules/
+.DS_Store
+
+# Build outputs
+infra/docs/schemaspy/
+
+# Keep these tracked (explicitly add them later)
+!infra/dumps/
+!infra/inventory/
