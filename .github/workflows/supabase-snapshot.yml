@@ -1,12 +1,11 @@
-cat > .github/workflows/supabase-snapshot.yml <<'EOF'
 name: Supabase Snapshot & Docs
 
 on:
-  push:
-    branches: [ "main" ]
+  workflow_dispatch: {}
   schedule:
     - cron: "0 21 * * *"  # daily 21:00 UTC
-  workflow_dispatch: {}
+  push:
+    branches: ["main"]
 
 jobs:
   snapshot:
@@ -24,7 +23,6 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y postgresql-client jq python3
 
-      # Build a correct DB URL from discrete secrets (auto-encode password)
       - name: Build DB URL from parts
         id: build_url
         env:
@@ -38,19 +36,18 @@ jobs:
             if [ -z "${!v}" ]; then echo "❌ Missing secret: $v"; exit 1; fi
           done
           DB_URL=$(python3 - <<'PY'
-import os, urllib.parse
-host=os.environ["DB_HOST"].strip()
-db  =os.environ["DB_NAME"].strip()
-usr =os.environ["DB_USER"].strip()
-pwd =urllib.parse.quote(os.environ["DB_PASS"], safe="")
-print(f"postgresql://{usr}:{pwd}@{host}:5432/{db}?sslmode=require")
-PY
-)
+          import os, urllib.parse
+          host=os.environ["DB_HOST"].strip()
+          db  =os.environ["DB_NAME"].strip()
+          usr =os.environ["DB_USER"].strip()
+          pwd =urllib.parse.quote(os.environ["DB_PASS"], safe="")
+          print(f"postgresql://{usr}:{pwd}@{host}:5432/{db}?sslmode=require")
+          PY
+          )
           echo "::add-mask::$DB_URL"
           echo "SUPABASE_DB_URL=$DB_URL" >> $GITHUB_ENV
           echo "✅ Built DB URL"
 
-      # Quick connectivity check so failures are obvious
       - name: DB smoke test
         run: |
           set -e
@@ -76,8 +73,3 @@ PY
             infra/dumps/**
             infra/inventory/**
             supabase/functions/**
-EOF
-
-git add .github/workflows/supabase-snapshot.yml
-git commit -m "CI: build DB URL from parts + smoke test"
-git push
