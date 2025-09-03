@@ -9,19 +9,20 @@ DB_HOST ?= $(SUPABASE_DB_HOST)
 DB_NAME ?= $(SUPABASE_DB_NAME)
 DB_USER ?= $(SUPABASE_DB_USER)
 DB_PASS ?= $(SUPABASE_DB_PASSWORD)
-SB_REF  ?= $(SB_PROJECT_REF)
+
+SB_REF ?= $(SB_PROJECT_REF)
 
 .DEFAULT_GOAL := report
 
 dump-schema:
 	@mkdir -p $(DUMPS_DIR)
-	supabase db dump --db-url "$(PGURL)" -f "$(DUMPS_DIR)/schema.sql"
+	npx -y supabase db dump --db-url "$(PGURL)" -f "$(DUMPS_DIR)/schema.sql"
 
 dump-roles:
-	supabase db dump --db-url "$(PGURL)" -f "$(DUMPS_DIR)/roles.sql" --role-only
+	npx -y supabase db dump --db-url "$(PGURL)" -f "$(DUMPS_DIR)/roles.sql" --role-only
 
 dump-data:
-	supabase db dump --db-url "$(PGURL)" -f "$(DUMPS_DIR)/data.sql" --data-only --use-copy
+	npx -y supabase db dump --db-url "$(PGURL)" -f "$(DUMPS_DIR)/data.sql" --data-only --use-copy
 
 inventory:
 	./scripts/inventory.sh
@@ -37,12 +38,11 @@ erd:
 	  --format '{{ mermaid . }}' > "$(DOCS_DIR)/erd.mmd"
 
 functions:
-	funcs=$$(supabase functions list --project-ref "$${SB_REF}" --output json | jq -r '.[].name'); \
+	funcs=$$(npx -y supabase functions list --project-ref "$${SB_REF}" --output json | jq -r '.[].name'); \
 	for f in $$funcs; do \
 		echo "Downloading $$f"; \
-		supabase functions download "$$f" --project-ref "$${SB_REF}" --path supabase/functions/"$$f" --overwrite; \
+		npx -y supabase functions download "$$f" --project-ref "$${SB_REF}" --path supabase/functions/"$$f" --overwrite; \
 	done
 
-report: dump-schema inventory
-	@echo "Report generated under infra/*"
-	@echo "Tip: 'make schemaspy erd functions' for optional extras locally."
+report: dump-schema inventory schemaspy erd functions
+	@echo "Report generated under infra/* and supabase/functions/*"
